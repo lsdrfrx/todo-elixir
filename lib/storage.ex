@@ -1,10 +1,9 @@
 defmodule Storage do
   def get(path \\ "tasks.json") do
-    with {:ok, content} <- File.read(path),
-         {:ok, decoded} <- JSON.decode(content) do
-      {:ok, decoded}
+    with {:ok, content} <- File.read(path) do
+      JSON.decode(content)
     else
-      {:error} -> {:error, "Failed to read file #{path}"}
+      {:error, reason} -> {:error, reason}
     end
   end
 

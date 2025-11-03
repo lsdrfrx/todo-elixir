@@ -3,6 +3,15 @@ defmodule Todo do
     argv |> parse_args
   end
 
+  defp bind({:ok, value}, func), do: func.(value)
+  defp bind({:error, reason}, _), do: {:error, reason}
+
+  defp map({:ok, value}, func), do: {:ok, func.(value)}
+  defp map({:error, reason}, _), do: {:error, reason}
+
+  defp handle_error({:error, reason}), do: IO.puts(reason)
+  defp handle_error(_), do: :ok
+
   defp parse_args(["list"]), do: list_tasks()
 
   defp parse_args(["toggle", index]),
@@ -26,55 +35,45 @@ defmodule Todo do
   end
 
   defp list_tasks() do
-    with {:ok, content} <- Storage.get() do
-      content |> Enum.each(&print_task(&1["title"], &1["done"]))
-    else
-      {:error, reason} -> IO.inspect(reason)
-    end
+    Storage.get()
+    |> bind(fn content -> Enum.each(content, &print_task(&1["title"], &1["done"])) end)
+    |> handle_error()
   end
 
   defp toggle_task(index) when is_number(index) do
-    with {:ok, content} <- Storage.get() do
+    Storage.get()
+    |> map(fn content ->
       content
       |> Enum.with_index()
       |> Enum.map(fn
         {task, ^index} -> %{"title" => task["title"], "done" => !task["done"]}
         {task, _} -> task
       end)
-      |> Storage.write()
-
-      list_tasks()
-    else
-      {:error, reason} -> IO.inspect(reason)
-      _ -> IO.inspect("Unknown error")
-    end
+    end)
+    |> map(&Storage.write/1)
+    |> bind(fn _ -> list_tasks() end)
+    |> handle_error()
   end
 
   defp create_task(title) do
-    with {:ok, content} <- Storage.get() do
-      [%{"title" => title, "done" => false} | content]
-      |> Storage.write()
-
-      list_tasks()
-    else
-      {:error, reason} -> IO.inspect(reason)
-      _ -> IO.inspect("Unknown error")
-    end
+    Storage.get()
+    |> map(fn content -> [%{"title" => title, "done" => false} | content] end)
+    |> map(&Storage.write/1)
+    |> bind(fn _ -> list_tasks() end)
+    |> handle_error()
   end
 
   defp delete_task(index) when is_number(index) do
-    with {:ok, content} <- Storage.get() do
+    Storage.get()
+    |> map(fn content ->
       content
       |> Enum.with_index()
       |> Enum.filter(fn {_, i} -> i != index end)
       |> Enum.map(fn {task, _} -> task end)
-      |> Storage.write()
-
-      list_tasks()
-    else
-      {:error, reason} -> IO.inspect(reason)
-      _ -> IO.inspect("Unknown error")
-    end
+    end)
+    |> map(&Storage.write/1)
+    |> bind(fn _ -> list_tasks() end)
+    |> handle_error()
   end
 
   defp print_task(title, false), do: IO.puts("- [ ] #{title}")
